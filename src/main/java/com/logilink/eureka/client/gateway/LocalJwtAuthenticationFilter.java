@@ -1,6 +1,8 @@
 package com.logilink.eureka.client.gateway;
 
 import com.logilink.eureka.client.gateway.common.constants.DeliveryUserType;
+import com.logilink.eureka.client.gateway.common.exception.AppException;
+import com.logilink.eureka.client.gateway.common.exception.GatewayErrorCode;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
@@ -41,8 +43,7 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
 
         // 토큰이 없거나 유효하지 않으면 예외처리
         if (token == null) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            throw AppException.of(GatewayErrorCode.TOKEN_IS_NOT_EXISTING_OR_INVALID);
         }
 
         // 유효한 토큰에서 payload(클레임) 파싱
@@ -50,9 +51,7 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
         try {
             claims = parseAndValidateToken(token);
         } catch (Exception e) {
-            log.warn("JWT validation failed: {}", e.getMessage());
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            throw AppException.of(GatewayErrorCode.FAILED_TOKEN_VALIDATION);
         }
 
         Long userId = claims.get("userId", Long.class);    //필수 데이터
@@ -63,8 +62,7 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
         Boolean isDeliveryAvailable = claims.get("isDeliveryAvailable", Boolean.class);    //선택 데이터
 
         if (userId == null || role == null) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            throw AppException.of(GatewayErrorCode.REQUIRED_DATA_IS_NULL);
         }
 
         /*** 새로운 헤더 추가 : 문자열 형태만 가능
@@ -120,7 +118,7 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
         Claims claims = claimsJws.getPayload();
         Date expiration = claims.getExpiration();
         if (expiration != null && expiration.before(new Date())) {
-            throw new RuntimeException("JWT expired");
+            throw AppException.of(GatewayErrorCode.EXPIRED_TOKEN);
         }
 
         return claims;
