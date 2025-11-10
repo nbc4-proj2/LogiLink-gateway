@@ -48,20 +48,24 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
         // 유효한 토큰에서 payload(클레임) 파싱
         Claims claims;
         try {
-            claims = parseAndValidateToken(token); // ✅ 예외 발생 시 catch로 넘어감
+            claims = parseAndValidateToken(token);
         } catch (Exception e) {
             log.warn("JWT validation failed: {}", e.getMessage());
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
         }
 
-        Long userId = claims.get("userId", Long.class);
-        String role = claims.get("role", String.class);
-        UUID hubId = claims.get("hubId", UUID.class);
+        Long userId = claims.get("userId", Long.class);    //필수 데이터
+        String role = claims.get("role", String.class);    //필수 데이터
+        UUID hubId = claims.get("hubId", UUID.class);    //선택 데이터
         UUID companyId = claims.get("companyId", UUID.class);
-        DeliveryUserType deliveryType = claims.get("deliveryType", DeliveryUserType.class);
-        Boolean isDeliveryAvailable = claims.get("isDeliveryAvailable", Boolean.class);
+        DeliveryUserType deliveryType = claims.get("deliveryType", DeliveryUserType.class);    //선택 데이터
+        Boolean isDeliveryAvailable = claims.get("isDeliveryAvailable", Boolean.class);    //선택 데이터
 
+        if (userId == null || role == null) {
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
+        }
 
         /*** 새로운 헤더 추가 : 문자열 형태만 가능
          *
@@ -72,16 +76,26 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
          * Boolean isDeliveryAvailable = Boolean.parseBoolean(request.getHeader("X-Is-Delivery-Available"));
          *
          */
-        ServerHttpRequest mutatedRequest = exchange.getRequest()
+        ServerHttpRequest.Builder requestBuilder = exchange.getRequest()
                 .mutate()
                 .header("X-User-Id", String.valueOf(userId))
-                .header("X-User-Role", role)
-                .header("X-Hub-Id", hubId.toString())
-                .header("X-Company-Id", companyId.toString())
-                .header("X-Delivery-Type", deliveryType.name())
-                .header("X-Is-Delivery-Available", String.valueOf(isDeliveryAvailable))
-                .build();
+                .header("X-User-Role", role);
 
+        //선택 값들은 있을 때만 헤더 추가
+        if (hubId != null) {
+            requestBuilder.header("X-Hub-Id", hubId.toString());
+        }
+        if (companyId != null) {
+            requestBuilder.header("X-Company-Id", companyId.toString());
+        }
+        if (deliveryType != null) {
+            requestBuilder.header("X-Delivery-Type", deliveryType.name());
+        }
+        if (isDeliveryAvailable != null) {
+            requestBuilder.header("X-Is-Delivery-Available", String.valueOf(isDeliveryAvailable));
+        }
+
+        ServerHttpRequest mutatedRequest = requestBuilder.build();
         // 수정된 요청으로 체인 계속 진행
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
     }
@@ -106,7 +120,7 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
         Claims claims = claimsJws.getPayload();
         Date expiration = claims.getExpiration();
         if (expiration != null && expiration.before(new Date())) {
-            log.error("JWT expired");
+            throw new RuntimeException("JWT expired");
         }
 
         return claims;
