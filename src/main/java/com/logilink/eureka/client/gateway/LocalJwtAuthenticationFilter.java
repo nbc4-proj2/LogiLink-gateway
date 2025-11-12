@@ -54,12 +54,12 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
             throw AppException.of(GatewayErrorCode.FAILED_TOKEN_VALIDATION);
         }
 
-        Long userId = claims.get("userId", Long.class);    //필수 데이터
+        Long userId = claims.get("user_id", Long.class);    //필수 데이터
         String role = claims.get("role", String.class);    //필수 데이터
-        UUID hubId = claims.get("hubId", UUID.class);    //선택 데이터
-        UUID companyId = claims.get("companyId", UUID.class);
-        DeliveryUserType deliveryType = claims.get("deliveryType", DeliveryUserType.class);    //선택 데이터
-        Boolean isDeliveryAvailable = claims.get("isDeliveryAvailable", Boolean.class);    //선택 데이터
+        // 문자열로 받고 직접 파싱
+        String hubIdStr = claims.get("hub_id", String.class);
+        String companyIdStr = claims.get("company_id", String.class);
+        String deliveryTypeStr = claims.get("delivery_type", String.class);   //선택 데이터
 
         if (userId == null || role == null) {
             throw AppException.of(GatewayErrorCode.REQUIRED_DATA_IS_NULL);
@@ -80,17 +80,14 @@ public class LocalJwtAuthenticationFilter implements GlobalFilter {
                 .header("X-User-Role", role);
 
         //선택 값들은 있을 때만 헤더 추가
-        if (hubId != null) {
-            requestBuilder.header("X-Hub-Id", hubId.toString());
+        if (hubIdStr != null) {
+            requestBuilder.header("X-Hub-Id", hubIdStr);
         }
-        if (companyId != null) {
-            requestBuilder.header("X-Company-Id", companyId.toString());
+        if (companyIdStr != null) {
+            requestBuilder.header("X-Company-Id", companyIdStr);
         }
-        if (deliveryType != null) {
-            requestBuilder.header("X-Delivery-Type", deliveryType.name());
-        }
-        if (isDeliveryAvailable != null) {
-            requestBuilder.header("X-Is-Delivery-Available", String.valueOf(isDeliveryAvailable));
+        if (deliveryTypeStr != null) {
+            requestBuilder.header("X-Delivery-Type", deliveryTypeStr);
         }
 
         ServerHttpRequest mutatedRequest = requestBuilder.build();
